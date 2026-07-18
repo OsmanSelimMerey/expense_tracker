@@ -2,10 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:uuid/uuid.dart';
 import '../controllers/expense_controller.dart';
-import '../../../auth/domain/repositories/i_auth_repository.dart';
 import '../../domain/entities/expense.dart';
+// uuid ve i_auth_repository importlarını sildik, çünkü view'ın bunlarla işi yok!
 
 class ExpenseFormPage extends StatefulWidget {
   final Expense? expenseToEdit;
@@ -34,34 +33,42 @@ class _ExpenseFormPageState extends State<ExpenseFormPage> {
     _selectedDate = widget.expenseToEdit?.date ?? DateTime.now();
   }
 
+  // YENİ: BELLEK TEMİZLİĞİ (Memory Leak engellemek için)
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  // YENİ: TARİH SEÇİCİ FONKSİYONU
+  Future<void> _pickDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
   void _saveExpense() {
     if (_formKey.currentState!.validate()) {
-      final authRepo = Get.find<IAuthRepository>();
-      final currentUserId = authRepo.getCurrentUserId();
+      final controller = Get.find<ExpenseController>();
 
-      if (currentUserId == null) {
-        Get.snackbar('Hata', 'Kullanıcı oturumu bulunamadı.');
-        return;
-      }
-
-      final expense = Expense(
-        id: widget.expenseToEdit?.id ?? Uuid().v4(),
-        userId: currentUserId, // EN KRİTİK NOKTA: Gerçek kullanıcının ID'si eklendi
-        amount: double.parse(_amountController.text),
+      // APTAL VIEW PRENSİBİ: Bütün iş mantığı (Entity yaratma, UUID üretme, Auth, if/else)
+      // Controller'a devredildi. View sadece kullanıcının girdiği saf metinleri yolluyor!
+      controller.saveExpense(
+        existingId: widget.expenseToEdit?.id, // Yeniyse null gider, Controller bunu anlar
+        amountText: _amountController.text,
         category: _selectedCategory,
         date: _selectedDate,
         description: _descriptionController.text,
       );
-
-      final controller = Get.find<ExpenseController>();
-
-      if (widget.expenseToEdit == null) {
-        controller.addExpense(expense);
-      } else {
-        controller.updateExpense(expense);
-      }
-
-      Get.back(); // Ana sayfaya dön
     }
   }
 
@@ -79,8 +86,9 @@ class _ExpenseFormPageState extends State<ExpenseFormPage> {
             children: [
               TextFormField(
                 controller: _amountController,
-                decoration: const InputDecoration(labelText: 'Tutar (₺)'),
-                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Tutar (₺) (örn: 12.50 veya 12,50)'),
+                // Klavyede virgül ve noktanın çıkması için "decimal: true" eklendi
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) => value == null || value.isEmpty ? 'Lütfen bir tutar girin' : null,
               ),
               const SizedBox(height: 16),
@@ -95,6 +103,24 @@ class _ExpenseFormPageState extends State<ExpenseFormPage> {
                 controller: _descriptionController,
                 decoration: const InputDecoration(labelText: 'Açıklama (Opsiyonel)'),
               ),
+              const SizedBox(height: 16),
+
+              // YENİ: TARİH SEÇİCİ TASARIMI
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      "Tarih: ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _pickDate,
+                    child: const Text('Tarih Seç'),
+                  )
+                ],
+              ),
+
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _saveExpense,

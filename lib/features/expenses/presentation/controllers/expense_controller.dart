@@ -3,7 +3,7 @@
 import 'package:get/get.dart';
 import '../../domain/repositories/i_expense_repository.dart';
 import '../../domain/entities/expense.dart';
-import '../../../auth/domain/repositories/i_auth_repository.dart'; // Kullanıcıyı bilmemiz lazım
+import '../../../auth/domain/repositories/i_auth_repository.dart';
 
 enum ViewState { loading, empty, error, success }
 
@@ -24,58 +24,82 @@ class ExpenseController extends GetxController {
     loadExpenses(); // Controller ayağa kalkarken verileri çek
   }
 
-  // SADECE GİRİŞ YAPAN KULLANICININ VERİSİNİ ÇEK
+  // EKSİK OLAN VE DURUMLARI YÖNETEN ANA METOT
   Future<void> loadExpenses() async {
-    final userId = _authRepository.getCurrentUserId();
-    if (userId == null) {
-      viewState.value = ViewState.error;
-      errorMessage.value = "Kullanıcı oturumu bulunamadı.";
-      return;
-    }
-
     try {
       viewState.value = ViewState.loading;
-      errorMessage.value = '';
+      final userId = _authRepository.getCurrentUserId();
+
+      if (userId == null) {
+        throw Exception("Kullanıcı bulunamadı");
+      }
 
       final data = await _expenseRepository.getExpenses(userId);
 
-      expenses.assignAll(data); // Listeyi güncelle
-
-      if (expenses.isEmpty) {
+      if (data.isEmpty) {
         viewState.value = ViewState.empty;
       } else {
+        expenses.value = data;
         viewState.value = ViewState.success;
       }
     } catch (e) {
+      errorMessage.value = e.toString();
       viewState.value = ViewState.error;
-      errorMessage.value = "Harcamalar yüklenirken bir hata oluştu.";
     }
   }
 
-  // TOPLAM TUTARI HESAPLA (GetX'in nimetlerinden biri: Computed özellik)
+  // --- YENİ EKLENEN AKILLI KAYDETME METODU ---
+  Future<void> saveExpense({
+    String? existingId,
+    required String amountText,
+    required String category,
+    required DateTime date,
+    required String description,
+  }) async {
+    try {
+      // 1. Virgül sorununu çöz (12,50 girilirse 12.50 yap) ve sayıya çevir
+      final cleanAmountText = amountText.replaceAll(',', '.');
+      final amount = double.parse(cleanAmountText);
+
+      // 2. Giriş yapan kullanıcının ID'sini kendi repository'nden al
+      final userId = _authRepository.getCurrentUserId();
+      if (userId == null) throw Exception("Kullanıcı bulunamadı!");
+
+      // 3. Domain Entity'sini (Expense) oluştur (İş mantığı burada)
+      final expense = Expense(
+        id: existingId ?? '', // Yeni kayıtsa boş bırak, Firebase kendi ID atayacak
+        userId: userId,
+        amount: amount,
+        category: category,
+        date: date,
+        description: description,
+      );
+
+      // 4. Duruma göre Ekle veya Güncelle
+      if (existingId == null || existingId.isEmpty) {
+        await _expenseRepository.addExpense(expense);
+      } else {
+        await _expenseRepository.updateExpense(expense);
+      }
+
+      // 5. Listeyi yenile ve başarı mesajı göster
+      await loadExpenses();
+      Get.back(); // Form sayfasını kapat
+      Get.snackbar('Başarılı', 'Harcama kaydedildi.', snackPosition: SnackPosition.BOTTOM);
+
+    } catch (e) {
+      // Sayıya çevirme hatası veya başka bir hata olursa View çökmez, mesaj gösteririz
+      print("🔥 KAYDETME HATASI: $e");
+      Get.snackbar('Hata', 'Lütfen geçerli bir tutar girin.', snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
+  // TOPLAM TUTARI HESAPLA
   double get totalExpense {
     return expenses.fold(0, (sum, item) => sum + item.amount);
   }
 
-  Future<void> addExpense(Expense expense) async {
-    try {
-      await _expenseRepository.addExpense(expense);
-      await loadExpenses(); // Listeyi yenile
-    } catch (e) {
-      print("🔥 EKLEME HATASI: $e");
-      Get.snackbar("Hata", "Harcama eklenemedi.");
-    }
-  }
-
-  Future<void> updateExpense(Expense expense) async {
-    try {
-      await _expenseRepository.updateExpense(expense);
-      await loadExpenses();
-    } catch (e) {
-      Get.snackbar("Hata", "Harcama güncellenemedi.");
-    }
-  }
-
+  // SİLME METODU
   Future<void> deleteExpense(String id) async {
     try {
       await _expenseRepository.deleteExpense(id);
