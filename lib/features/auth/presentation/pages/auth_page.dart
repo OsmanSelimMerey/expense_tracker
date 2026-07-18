@@ -3,8 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
-import '../../../expenses/presentation/pages/expenses_page.dart';
-import '../../../expenses/presentation/controllers/expense_controller.dart';
+// Sayfa yönlendirme ve ExpenseController ile işimiz kalmadığı için o importları sildik.
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -18,38 +17,25 @@ class _AuthPageState extends State<AuthPage> {
   final _passwordController = TextEditingController();
   final AuthController _authController = Get.find<AuthController>();
 
-  bool _isLogin = true; // Sayfa ilk açıldığında "Giriş Yap" modunda olsun
+  bool _isLogin = true; // Sadece arayüzün (UI) ne göstereceğini belirler
 
-  void _submit() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+  // YENİ: Bellek sızıntısını (Memory Leak) önlemek için dispose eklendi
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
-    if (email.isEmpty || password.isEmpty) {
-      Get.snackbar("Uyarı", "Lütfen tüm alanları doldurun.", snackPosition: SnackPosition.BOTTOM);
-      return;
-    }
-
-    bool success;
-    if (_isLogin) {
-      success = await _authController.login(email, password);
-    } else {
-      success = await _authController.register(email, password);
-    }
-
-    if (success) {
-      // ÇÖZÜM BURADA: Giriş başarılı olunca ExpenseController'a verileri yenilemesini söylüyoruz.
-      Get.find<ExpenseController>().loadExpenses();
-
-      Get.offAll(() => const ExpensesPage());
-    } else {
-      Get.snackbar(
-        "Hata",
-        _authController.errorMessage.value,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
-      );
-    }
+  void _submit() {
+    // APTAL VIEW PRENSİBİ: View sadece kullanıcının girdiği saf metinleri
+    // ve hangi butona bastığını (isLogin) Controller'a gönderir.
+    // Hata gösterme, doğrulama veya sayfa değiştirme işini bilmez!
+    _authController.submitAuthForm(
+      email: _emailController.text,
+      password: _passwordController.text,
+      isLogin: _isLogin,
+    );
   }
 
   @override
@@ -84,7 +70,7 @@ class _AuthPageState extends State<AuthPage> {
             TextButton(
               onPressed: () {
                 setState(() {
-                  _isLogin = !_isLogin; // Modu değiştir
+                  _isLogin = !_isLogin; // Arayüz modunu değiştir
                 });
               },
               child: Text(_isLogin ? 'Hesabın yok mu? Kayıt Ol' : 'Zaten hesabın var mı? Giriş Yap'),
