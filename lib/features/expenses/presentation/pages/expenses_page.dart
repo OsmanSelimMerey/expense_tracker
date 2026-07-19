@@ -5,12 +5,13 @@ import 'package:get/get.dart';
 import '../controllers/expense_controller.dart';
 import 'expense_form_page.dart';
 
-class ExpensesPage extends StatelessWidget {
+class ExpensesPage extends StatelessWidget { // ConsumerWidget YERİNE StatelessWidget
   const ExpensesPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) { // WidgetRef ref SİLİNDİ
     final controller = Get.find<ExpenseController>();
+    // ... geri kalanı tamamen aynı, hiçbir şeye DOKUNMA!
 
     return Scaffold(
       appBar: AppBar(
