@@ -65,4 +65,31 @@ class ExpenseDto {
       description: expense.description,
     );
   }
+
+  // 5. API JSON'ından DTO oluşturur. API 'title' alanı 'description'a,
+  //    'date' ISO string'i milisaniyeye eşlenir. userId JWT'den geldiği için
+  //    dışarıdan verilir.
+  factory ExpenseDto.fromApiJson(Map<String, dynamic> json, String userId) {
+    return ExpenseDto(
+      id: json['id']?.toString() ?? '',
+      userId: userId,
+      amount: (json['amount'] ?? 0).toDouble(),
+      category: json['category'] ?? '',
+      dateMilliseconds:
+          DateTime.parse(json['date'] as String).millisecondsSinceEpoch,
+      description: json['title'] ?? '',
+    );
+  }
+
+  // 6. DTO'yu API request body'sine çevirir (UserId sunucuda JWT'den atanır).
+  Map<String, dynamic> toApiJson() {
+    return {
+      'title': description,
+      'amount': amount,
+      'date': DateTime.fromMillisecondsSinceEpoch(dateMilliseconds)
+          .toUtc()
+          .toIso8601String(),
+      'category': category,
+    };
+  }
 }
